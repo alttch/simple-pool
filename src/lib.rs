@@ -70,8 +70,8 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
     }
 }
 
-struct ResourceHolder<T> {
-    resources: Vec<T>,
+pub struct ResourceHolder<T> {
+    pub resources: Vec<T>,
     wakers: Vec<Waker>,
 }
 
@@ -97,7 +97,7 @@ impl<T> ResourceHolder<T> {
 
 /// Versatile resource pool
 pub struct ResourcePool<T> {
-    holder: Arc<Mutex<ResourceHolder<T>>>,
+    pub holder: Arc<Mutex<ResourceHolder<T>>>,
 }
 
 impl<T> Default for ResourcePool<T> {
