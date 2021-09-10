@@ -4,7 +4,11 @@ Simple and fast async pool for any kind of resources
 
 ## The idea
 
-This is a helper library to create custom pools of anything.
+This is a helper library to create custom pools of anything
+
+## Crate
+
+https://crates.io/crates/simple-pool
 
 ## Example
 
