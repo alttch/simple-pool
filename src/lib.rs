@@ -149,7 +149,7 @@ impl<T> ResourcePool<T> {
     }
 }
 
-/// Returns a reference to the original Mutex
+/// Returns a reference to the original resource
 pub struct ResourcePoolGuard<T> {
     resource: Option<T>,
     holder: Arc<Mutex<ResourceHolder<T>>>,
