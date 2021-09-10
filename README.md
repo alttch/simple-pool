@@ -35,7 +35,7 @@ async fn test() {
     for _ in 0..n {
         let res_pool = resource_pool.clone();
         fut.push(tokio::spawn(async move {
-            // gets one of 20 open tcp connections as soon as one is available
+            // gets open tcp connection as soon as one is available
             let _client = res_pool.read().await.get().await;
         }));
     }
