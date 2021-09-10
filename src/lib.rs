@@ -131,7 +131,7 @@ impl<T> ResourcePool<T> {
     /// thread.
     pub fn append(&mut self, res: T) {
         let mut resources = self.holder.lock().unwrap();
-        resources.append_resource(res)
+        resources.append_resource(res);
     }
 
     /// Get resource from the pool or wait until one is available
@@ -182,7 +182,7 @@ impl<T> Drop for ResourcePoolGuard<T> {
             self.holder
                 .lock()
                 .unwrap()
-                .append_resource(self.resource.take().unwrap())
+                .append_resource(self.resource.take().unwrap());
         }
     }
 }
