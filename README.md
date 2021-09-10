@@ -19,7 +19,7 @@ use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 
 async fn test() {
-	// create a local or static resource pool
+    // create a local or static resource pool
     let resource_pool: Arc<RwLock<ResourcePool<TcpStream>>> =
         Arc::new(RwLock::new(ResourcePool::new()));
     {
