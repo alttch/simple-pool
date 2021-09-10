@@ -85,9 +85,8 @@ impl<T> ResourceHolder<T> {
 
     fn append_resource(&mut self, res: T) {
         self.resources.push(res);
-        self.wakers.reverse();
-        while let Some(waker) = self.wakers.pop() {
-            waker.wake();
+        while !self.wakers.is_empty() {
+            self.wakers.remove(0).wake();
         }
     }
 
