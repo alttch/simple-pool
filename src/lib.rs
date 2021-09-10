@@ -83,12 +83,11 @@ impl<T> ResourceHolder<T> {
         }
     }
 
-    fn append_resource(&mut self, res: T) -> Option<Waker> {
+    fn append_resource(&mut self, res: T) {
         self.resources.push(res);
-        if self.wakers.is_empty() {
-            None
-        } else {
-            Some(self.wakers.remove(0))
+        self.wakers.reverse();
+        while let Some(waker) = self.wakers.pop() {
+            waker.wake();
         }
     }
 
@@ -131,12 +130,8 @@ impl<T> ResourcePool<T> {
     /// This function might panic when called if the resource lock is already held by the current
     /// thread.
     pub fn append(&mut self, res: T) {
-        if let Some(waker) = {
-            let mut resources = self.holder.lock().unwrap();
-            resources.append_resource(res)
-        } {
-            waker.wake();
-        }
+        let mut resources = self.holder.lock().unwrap();
+        resources.append_resource(res)
     }
 
     /// Get resource from the pool or wait until one is available
@@ -184,14 +179,10 @@ impl<T> DerefMut for ResourcePoolGuard<T> {
 impl<T> Drop for ResourcePoolGuard<T> {
     fn drop(&mut self) {
         if self.need_return {
-            if let Some(waker) = {
-                self.holder
-                    .lock()
-                    .unwrap()
-                    .append_resource(self.resource.take().unwrap())
-            } {
-                waker.wake();
-            }
+            self.holder
+                .lock()
+                .unwrap()
+                .append_resource(self.resource.take().unwrap())
         }
     }
 }
