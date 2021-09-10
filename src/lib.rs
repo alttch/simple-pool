@@ -63,6 +63,7 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
                 Poll::Ready(ResourcePoolGuard {
                     resource: Some(res),
                     holder: self.pool.holder.clone(),
+                    need_return: true,
                 })
             },
         )
@@ -152,6 +153,14 @@ impl<T> ResourcePool<T> {
 pub struct ResourcePoolGuard<T> {
     resource: Option<T>,
     holder: Arc<Mutex<ResourceHolder<T>>>,
+    need_return: bool,
+}
+
+impl <T>ResourcePoolGuard<T> {
+    /// Do not return resource back to the pool when dropped
+    pub fn forget_resource(&mut self) {
+        self.need_return = false;
+    }
 }
 
 impl<T> Deref for ResourcePoolGuard<T> {
@@ -169,13 +178,15 @@ impl<T> DerefMut for ResourcePoolGuard<T> {
 
 impl<T> Drop for ResourcePoolGuard<T> {
     fn drop(&mut self) {
-        if let Some(waker) = {
-            self.holder
-                .lock()
-                .unwrap()
-                .append_resource(self.resource.take().unwrap())
-        } {
-            waker.wake();
+        if self.need_return {
+            if let Some(waker) = {
+                self.holder
+                    .lock()
+                    .unwrap()
+                    .append_resource(self.resource.take().unwrap())
+            } {
+                waker.wake();
+            }
         }
     }
 }
