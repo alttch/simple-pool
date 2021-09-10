@@ -17,7 +17,7 @@ use tokio::sync::RwLock;
 async fn test() {
 	// create local or static resource pool
     let resource_pool: Arc<RwLock<ResourcePool<TcpStream>>> =
-        Arc::new(RwLock::new(ResourcePool::new(20)));
+        Arc::new(RwLock::new(ResourcePool::new()));
     let mut pool = resource_pool.write().await;
 	// put 20 tcp connections there
     for _ in 0..20 {
@@ -31,6 +31,7 @@ async fn test() {
     for _ in 0..n {
         let res_pool = resource_pool.clone();
         fut.push(tokio::spawn(async move {
+            // gets one of 20 open tcp connections as soon as one is available
             let _client = res_pool.read().await.get().await;
         }));
     }
