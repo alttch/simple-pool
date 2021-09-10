@@ -156,10 +156,15 @@ pub struct ResourcePoolGuard<T> {
     need_return: bool,
 }
 
-impl <T>ResourcePoolGuard<T> {
+impl<T> ResourcePoolGuard<T> {
     /// Do not return resource back to the pool when dropped
     pub fn forget_resource(&mut self) {
         self.need_return = false;
+    }
+    /// Replace resource with a new one
+    pub fn replace_resource(&mut self, resource: T) {
+        self.need_return = true;
+        self.resource.replace(resource);
     }
 }
 
