@@ -16,26 +16,24 @@
 //! use simple_pool::ResourcePool;
 //! use std::sync::Arc;
 //! use tokio::net::TcpStream;
-//! use tokio::sync::RwLock;
 //! 
 //! async fn test() {
 //!     // create a local or static resource pool
-//!     let resource_pool: Arc<RwLock<ResourcePool<TcpStream>>> =
-//!         Arc::new(RwLock::new(ResourcePool::new()));
+//!     let resource_pool: Arc<ResourcePool<TcpStream>> =
+//!         Arc::new(ResourcePool::new());
 //!     {
-//!         let mut pool = resource_pool.write().await;
 //!         // put 20 tcp connections there
 //!         for _ in 0..20 {
 //!             let client = TcpStream::connect("127.0.0.1:80").await.unwrap();
-//!             pool.append(client);
+//!             resource_pool.append(client);
 //!         }
 //!     }
 //!     let n = 1_000_000;
 //!     for _ in 0..n {
-//!         let res_pool = resource_pool.clone();
+//!         let pool = resource_pool.clone();
 //!         tokio::spawn(async move {
 //!             // gets open tcp connection as soon as one is available
-//!             let _client = res_pool.read().await.get().await;
+//!             let _client = pool.get().await;
 //!         });
 //!     }
 //! }
@@ -128,7 +126,7 @@ impl<T> ResourcePool<T> {
     ///
     /// This function might panic when called if the resource lock is already held by the current
     /// thread.
-    pub fn append(&mut self, res: T) {
+    pub fn append(&self, res: T) {
         let mut resources = self.holder.lock().unwrap();
         resources.append_resource(res);
     }
