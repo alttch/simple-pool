@@ -68,6 +68,7 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
     }
 }
 
+/// Access directly only if you know what you are doing
 pub struct ResourceHolder<T> {
     pub resources: Vec<T>,
     wakers: Vec<Waker>,
@@ -141,7 +142,9 @@ impl<T> ResourcePool<T> {
     }
 }
 
-/// Returns a reference to the original resource
+/// Returns a container with a resource
+///
+/// When dropped, the resource is sent back to the pool
 pub struct ResourcePoolGuard<T> {
     resource: Option<T>,
     holder: Arc<Mutex<ResourceHolder<T>>>,
