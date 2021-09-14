@@ -125,7 +125,7 @@ impl<T> ResourcePool<T> {
     /// # Panics
     ///
     /// This function might panic when called if the resource lock is already held by the current
-    /// thread.
+    /// thread
     pub fn append(&self, res: T) {
         let mut resources = self.holder.lock().unwrap();
         resources.append_resource(res);
