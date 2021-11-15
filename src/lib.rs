@@ -82,6 +82,7 @@ impl<T> ResourceHolder<T> {
         }
     }
 
+    #[inline]
     fn append_resource(&mut self, res: T) {
         self.resources.push(res);
         while !self.wakers.is_empty() {
@@ -89,6 +90,7 @@ impl<T> ResourceHolder<T> {
         }
     }
 
+    #[inline]
     fn append_callback(&mut self, waker: Waker) {
         self.wakers.push(waker);
     }
@@ -127,16 +129,18 @@ impl<T> ResourcePool<T> {
     ///
     /// This function might panic when called if the resource lock is already held by the current
     /// thread
+    #[inline]
     pub fn append(&self, res: T) {
         let mut resources = self.holder.lock().unwrap();
         resources.append_resource(res);
     }
 
     /// Get resource from the pool or wait until one is available
+    #[inline]
     pub async fn get(&self) -> ResourcePoolGuard<T> {
         self._get().await
     }
-
+    #[inline]
     fn _get(&self) -> ResourcePoolGet<T> {
         ResourcePoolGet { pool: self }
     }
@@ -153,10 +157,12 @@ pub struct ResourcePoolGuard<T> {
 
 impl<T> ResourcePoolGuard<T> {
     /// Do not return resource back to the pool when dropped
+    #[inline]
     pub fn forget_resource(&mut self) {
         self.need_return = false;
     }
     /// Replace resource with a new one
+    #[inline]
     pub fn replace_resource(&mut self, resource: T) {
         self.need_return = true;
         self.resource.replace(resource);
@@ -165,12 +171,14 @@ impl<T> ResourcePoolGuard<T> {
 
 impl<T> Deref for ResourcePoolGuard<T> {
     type Target = T;
+    #[inline]
     fn deref(&self) -> &Self::Target {
         self.resource.as_ref().unwrap()
     }
 }
 
 impl<T> DerefMut for ResourcePoolGuard<T> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.resource.as_mut().unwrap()
     }
