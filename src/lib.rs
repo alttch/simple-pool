@@ -165,3 +165,62 @@ impl<T> Drop for ResourcePoolGuard<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::ResourcePool;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::mpsc;
+
+    #[tokio::test]
+    async fn test_stability() {
+        let pool = Arc::new(ResourcePool::new());
+        pool.append(());
+        let n = 10;
+        let mut futs = Vec::new();
+        let (tx, mut rx) = mpsc::channel(n);
+        for i in 1..=n {
+            let p = pool.clone();
+            let tx = tx.clone();
+            let fut = tokio::spawn(async move {
+                println!("future {} started", i);
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                let _lock = p.get().await;
+                //println!("future {} locked", i);
+                tx.send(i).await.unwrap();
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                println!("future {} finished", i);
+            });
+            tokio::time::sleep(Duration::from_millis(2)).await;
+            if (i - 1) % 10 == 0 {
+                println!("future {} canceled", i);
+                fut.abort();
+            }
+            futs.push(fut);
+        }
+        for fut in futs {
+            if let Err(e) = tokio::time::timeout(Duration::from_secs(5), fut)
+                .await
+                .unwrap()
+            {
+                if !e.is_cancelled() {
+                    panic!("{}", e);
+                }
+            }
+        }
+        let mut i = 0;
+        loop {
+            i += 1;
+            if (i - 1) % 10 == 0 {
+                i += 1;
+            }
+            if i > n {
+                break;
+            }
+            dbg!(i);
+            let fut_n = rx.recv().await.unwrap();
+            assert_eq!(i, fut_n);
+        }
+    }
+}
