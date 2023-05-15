@@ -1,51 +1,13 @@
-//! # simple-pool
-//! 
-//! Simple and fast async pool for any kind of resources
-//! 
-//! ## The idea
-//! 
-//! This is a helper library to create custom pools of anything
-//! 
-//! ## Crate
-//! 
-//! <https://crates.io/crates/simple-pool>
-//! 
-//! ## Example
-//! 
-//! ```rust
-//! use simple_pool::ResourcePool;
-//! use std::sync::Arc;
-//! use tokio::net::TcpStream;
-//! 
-//! async fn test() {
-//!     // create a local or static resource pool
-//!     let resource_pool: Arc<ResourcePool<TcpStream>> =
-//!         Arc::new(ResourcePool::new());
-//!     {
-//!         // put 20 tcp connections there
-//!         for _ in 0..20 {
-//!             let client = TcpStream::connect("127.0.0.1:80").await.unwrap();
-//!             resource_pool.append(client);
-//!         }
-//!     }
-//!     let n = 1_000_000;
-//!     for _ in 0..n {
-//!         let pool = resource_pool.clone();
-//!         tokio::spawn(async move {
-//!             // gets open tcp connection as soon as one is available
-//!             let _client = pool.get().await;
-//!         });
-//!     }
-//! }
-//! ```
+#![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "README.md" ) ) ]
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 struct ResourcePoolGet<'a, T> {
     pool: &'a ResourcePool<T>,
+    alive: Mutex<Option<mpsc::Receiver<()>>>,
 }
 
 impl<'a, T> Future for ResourcePoolGet<'a, T> {
@@ -54,7 +16,9 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
         let mut holder = self.pool.holder.lock().unwrap();
         holder.resources.pop().map_or_else(
             || {
-                holder.append_callback(cx.waker().clone());
+                let (tx, rx) = mpsc::channel();
+                self.alive.lock().unwrap().replace(rx);
+                holder.append_callback(cx.waker().clone(), tx);
                 Poll::Pending
             },
             |res| {
@@ -71,14 +35,14 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
 /// Access directly only if you know what you are doing
 pub struct ResourceHolder<T> {
     pub resources: Vec<T>,
-    wakers: Vec<Waker>,
+    wakers: Vec<(Waker, mpsc::Sender<()>)>,
 }
 
 impl<T> ResourceHolder<T> {
     fn new(size: usize) -> Self {
         Self {
             resources: Vec::with_capacity(size),
-            wakers: Vec::new(),
+            wakers: <_>::default(),
         }
     }
 
@@ -86,13 +50,17 @@ impl<T> ResourceHolder<T> {
     fn append_resource(&mut self, res: T) {
         self.resources.push(res);
         while !self.wakers.is_empty() {
-            self.wakers.remove(0).wake();
+            let (waker, tx) = self.wakers.remove(0);
+            if tx.send(()).is_ok() {
+                waker.wake();
+                break;
+            }
         }
     }
 
     #[inline]
-    fn append_callback(&mut self, waker: Waker) {
-        self.wakers.push(waker);
+    fn append_callback(&mut self, waker: Waker, tx: mpsc::Sender<()>) {
+        self.wakers.push((waker, tx));
     }
 }
 
@@ -142,7 +110,10 @@ impl<T> ResourcePool<T> {
     }
     #[inline]
     fn _get(&self) -> ResourcePoolGet<T> {
-        ResourcePoolGet { pool: self }
+        ResourcePoolGet {
+            pool: self,
+            alive: <_>::default(),
+        }
     }
 }
 
