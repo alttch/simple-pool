@@ -12,7 +12,7 @@ This is a helper library to create custom pools of anything
 
 ## Example
 
-```rust,ignore
+```rust
 use simple_pool::ResourcePool;
 use std::sync::Arc;
 use tokio::net::TcpStream;

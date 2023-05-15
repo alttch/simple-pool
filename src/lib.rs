@@ -8,7 +8,6 @@ use std::task::{Context, Poll, Waker};
 struct ResourcePoolGet<'a, T> {
     pool: &'a ResourcePool<T>,
     alive: Mutex<Option<mpsc::Receiver<()>>>,
-    id: usize,
 }
 
 impl<'a, T> Future for ResourcePoolGet<'a, T> {
@@ -16,14 +15,17 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
     fn poll(self: Pin<&mut ResourcePoolGet<'a, T>>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut holder = self.pool.holder.lock().unwrap();
         let mut alive = self.alive.lock().unwrap();
+        macro_rules! queue {
+            () => {{
+                let (tx, rx) = mpsc::channel();
+                alive.replace(rx);
+                holder.append_callback(cx.waker().clone(), tx);
+                Poll::Pending
+            }};
+        }
         if holder.wakers.is_empty() || alive.is_some() {
             holder.resources.pop().map_or_else(
-                || {
-                    let (tx, rx) = mpsc::channel();
-                    alive.replace(rx);
-                    holder.append_callback(cx.waker().clone(), tx);
-                    Poll::Pending
-                },
+                || queue!(),
                 |res| {
                     Poll::Ready(ResourcePoolGuard {
                         resource: Some(res),
@@ -33,10 +35,7 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
                 },
             )
         } else {
-            let (tx, rx) = mpsc::channel();
-            alive.replace(rx);
-            holder.append_callback(cx.waker().clone(), tx);
-            Poll::Pending
+            queue!()
         }
     }
 }
@@ -114,11 +113,10 @@ impl<T> ResourcePool<T> {
 
     /// Get resource from the pool or wait until one is available
     #[inline]
-    pub fn get(&self, id: usize) -> impl Future<Output = ResourcePoolGuard<T>> + '_ {
+    pub fn get(&self) -> impl Future<Output = ResourcePoolGuard<T>> + '_ {
         ResourcePoolGet {
             pool: self,
             alive: <_>::default(),
-            id,
         }
     }
 }
@@ -182,7 +180,7 @@ mod test {
 
     #[tokio::test]
     async fn test_stability() {
-        for _ in 0..1 {
+        for _ in 0..5 {
             let pool = Arc::new(ResourcePool::new());
             let op = Instant::now();
             pool.append(());
@@ -195,7 +193,7 @@ mod test {
                 let fut = tokio::spawn(async move {
                     tokio::time::sleep(Duration::from_millis(1)).await;
                     println!("future {} started {}", i, op.elapsed().as_millis());
-                    let _lock = p.get(i).await;
+                    let _lock = p.get().await;
                     tx.send(i).await.unwrap();
                     println!("future {} locked {}", i, op.elapsed().as_millis());
                     tokio::time::sleep(Duration::from_millis(10)).await;
