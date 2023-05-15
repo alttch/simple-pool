@@ -15,23 +15,29 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
     type Output = ResourcePoolGuard<T>;
     fn poll(self: Pin<&mut ResourcePoolGet<'a, T>>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut holder = self.pool.holder.lock().unwrap();
-        holder.resources.pop().map_or_else(
-            || {
-                let (tx, rx) = mpsc::channel();
-                self.alive.lock().unwrap().replace(rx);
-                holder.append_callback(cx.waker().clone(), tx);
-                println!("queued {}", self.id);
-                Poll::Pending
-            },
-            |res| {
-                println!("returned {}", self.id);
-                Poll::Ready(ResourcePoolGuard {
-                    resource: Some(res),
-                    holder: self.pool.holder.clone(),
-                    need_return: true,
-                })
-            },
-        )
+        let mut alive = self.alive.lock().unwrap();
+        if holder.wakers.is_empty() || alive.is_some() {
+            holder.resources.pop().map_or_else(
+                || {
+                    let (tx, rx) = mpsc::channel();
+                    alive.replace(rx);
+                    holder.append_callback(cx.waker().clone(), tx);
+                    Poll::Pending
+                },
+                |res| {
+                    Poll::Ready(ResourcePoolGuard {
+                        resource: Some(res),
+                        holder: self.pool.holder.clone(),
+                        need_return: true,
+                    })
+                },
+            )
+        } else {
+            let (tx, rx) = mpsc::channel();
+            alive.replace(rx);
+            holder.append_callback(cx.waker().clone(), tx);
+            Poll::Pending
+        }
     }
 }
 
@@ -180,7 +186,7 @@ mod test {
             let pool = Arc::new(ResourcePool::new());
             let op = Instant::now();
             pool.append(());
-            let n = 10;
+            let n = 1000;
             let mut futs = Vec::new();
             let (tx, mut rx) = mpsc::channel(n);
             for i in 1..=n {
