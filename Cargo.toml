@@ -10,4 +10,7 @@ readme = "README.md"
 keywords = ["pool", "async", "resource"]
 
 [dev-dependencies]
-tokio = { version = "1.9.0", features = ["net", "sync", "rt", "macros", "time"] }
+tokio = { version = "1.9.0", features = ["net", "sync", "rt-multi-thread", "macros", "time"] }
+
+[dependencies]
+parking_lot = "0.12.1"
