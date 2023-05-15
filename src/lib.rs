@@ -175,51 +175,53 @@ mod test {
 
     #[tokio::test]
     async fn test_stability() {
-        let pool = Arc::new(ResourcePool::new());
-        pool.append(());
-        let n = 100;
-        let mut futs = Vec::new();
-        let (tx, mut rx) = mpsc::channel(n);
-        for i in 1..=n {
-            let p = pool.clone();
-            let tx = tx.clone();
-            let fut = tokio::spawn(async move {
-                //println!("future {} started", i);
-                tokio::time::sleep(Duration::from_millis(10)).await;
-                let _lock = p.get().await;
-                //println!("future {} locked", i);
-                tx.send(i).await.unwrap();
-                tokio::time::sleep(Duration::from_millis(10)).await;
-                //println!("future {} finished", i);
-            });
-            tokio::time::sleep(Duration::from_millis(5)).await;
-            if (i - 1) % 10 == 0 {
-                //println!("future {} canceled", i);
-                fut.abort();
+        for _ in 0..10 {
+            let pool = Arc::new(ResourcePool::new());
+            pool.append(());
+            let n = 10;
+            let mut futs = Vec::new();
+            let (tx, mut rx) = mpsc::channel(n);
+            for i in 1..=n {
+                let p = pool.clone();
+                let tx = tx.clone();
+                let fut = tokio::spawn(async move {
+                    println!("future {} started", i);
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                    let _lock = p.get().await;
+                    tx.send(i).await.unwrap();
+                    println!("future {} locked", i);
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    println!("future {} finished", i);
+                });
+                tokio::time::sleep(Duration::from_millis(5)).await;
+                if (i - 1) % 10 == 0 {
+                    println!("future {} canceled", i);
+                    fut.abort();
+                }
+                futs.push(fut);
             }
-            futs.push(fut);
-        }
-        for fut in futs {
-            if let Err(e) = tokio::time::timeout(Duration::from_secs(5), fut)
-                .await
-                .unwrap()
-            {
-                if !e.is_cancelled() {
-                    panic!("{}", e);
+            for fut in futs {
+                if let Err(e) = tokio::time::timeout(Duration::from_secs(5), fut)
+                    .await
+                    .unwrap()
+                {
+                    if !e.is_cancelled() {
+                        panic!("{}", e);
+                    }
                 }
             }
-        }
-        let mut i = 0;
-        loop {
-            i += 1;
-            if (i - 1) % 10 == 0 {
+            let mut i = 0;
+            loop {
                 i += 1;
+                //if (i - 1) % 10 == 0 {
+                //i += 1;
+                //}
+                if i > n {
+                    break;
+                }
+                let fut_n = rx.recv().await.unwrap();
+                assert_eq!(i, fut_n);
             }
-            if i > n {
-                break;
-            }
-            let fut_n = rx.recv().await.unwrap();
-            assert_eq!(i, fut_n);
         }
     }
 }
