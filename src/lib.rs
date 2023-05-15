@@ -177,24 +177,24 @@ mod test {
     async fn test_stability() {
         let pool = Arc::new(ResourcePool::new());
         pool.append(());
-        let n = 10;
+        let n = 100;
         let mut futs = Vec::new();
         let (tx, mut rx) = mpsc::channel(n);
         for i in 1..=n {
             let p = pool.clone();
             let tx = tx.clone();
             let fut = tokio::spawn(async move {
-                println!("future {} started", i);
+                //println!("future {} started", i);
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 let _lock = p.get().await;
                 //println!("future {} locked", i);
                 tx.send(i).await.unwrap();
                 tokio::time::sleep(Duration::from_millis(10)).await;
-                println!("future {} finished", i);
+                //println!("future {} finished", i);
             });
-            tokio::time::sleep(Duration::from_millis(2)).await;
+            tokio::time::sleep(Duration::from_millis(5)).await;
             if (i - 1) % 10 == 0 {
-                println!("future {} canceled", i);
+                //println!("future {} canceled", i);
                 fut.abort();
             }
             futs.push(fut);
@@ -218,7 +218,6 @@ mod test {
             if i > n {
                 break;
             }
-            dbg!(i);
             let fut_n = rx.recv().await.unwrap();
             assert_eq!(i, fut_n);
         }
