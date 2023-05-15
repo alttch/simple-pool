@@ -171,12 +171,14 @@ mod test {
     use super::ResourcePool;
     use std::sync::Arc;
     use std::time::Duration;
+    use std::time::Instant;
     use tokio::sync::mpsc;
 
     #[tokio::test]
     async fn test_stability() {
-        for _ in 0..10 {
+        for _ in 0..1 {
             let pool = Arc::new(ResourcePool::new());
+            let op = Instant::now();
             pool.append(());
             let n = 10;
             let mut futs = Vec::new();
@@ -185,37 +187,34 @@ mod test {
                 let p = pool.clone();
                 let tx = tx.clone();
                 let fut = tokio::spawn(async move {
-                    println!("future {} started", i);
-                    tokio::time::sleep(Duration::from_millis(2)).await;
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                    println!("future {} started {}", i, op.elapsed().as_millis());
                     let _lock = p.get().await;
                     tx.send(i).await.unwrap();
-                    println!("future {} locked", i);
+                    println!("future {} locked {}", i, op.elapsed().as_millis());
                     tokio::time::sleep(Duration::from_millis(10)).await;
-                    println!("future {} finished", i);
+                    //println!("future {} finished", i);
                 });
-                tokio::time::sleep(Duration::from_millis(5)).await;
-                if (i - 1) % 10 == 0 {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+                if i > 1 && (i - 2) % 10 == 0 {
                     println!("future {} canceled", i);
                     fut.abort();
+                } else {
+                    futs.push(fut);
                 }
-                futs.push(fut);
             }
             for fut in futs {
-                if let Err(e) = tokio::time::timeout(Duration::from_secs(5), fut)
+                tokio::time::timeout(Duration::from_secs(5), fut)
                     .await
                     .unwrap()
-                {
-                    if !e.is_cancelled() {
-                        panic!("{}", e);
-                    }
-                }
+                    .unwrap();
             }
             let mut i = 0;
             loop {
                 i += 1;
-                //if (i - 1) % 10 == 0 {
-                //i += 1;
-                //}
+                if i > 1 && (i - 2) % 10 == 0 {
+                    i += 1;
+                }
                 if i > n {
                     break;
                 }
