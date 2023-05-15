@@ -9,7 +9,5 @@ description = "Simple async pool for any kind of resources"
 readme = "README.md"
 keywords = ["pool", "async", "resource"]
 
-[dependencies]
-
 [dev-dependencies]
 tokio = { version = "1.9.0", features = ["net", "sync", "rt"] }
