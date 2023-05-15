@@ -1,6 +1,6 @@
 [package]
 name = "simple-pool"
-version = "0.0.14"
+version = "0.0.15"
 edition = "2018"
 authors = ["Serhij S. <div@altertech.com>"]
 license = "MIT"
