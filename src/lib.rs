@@ -91,7 +91,9 @@ impl<T> ResourceHolder<T> {
     #[inline]
     fn notify_drop(&mut self, id: ClientId) {
         // remove the future from wakers
-        self.wakers.retain(|(_, i)| *i != id);
+        if let Some(pos) = self.wakers.iter().position(|(_, i)| *i == id) {
+            self.wakers.remove(pos);
+        }
         // if the future was pending to get a resource, wake the next one
         if self.pending.remove(&id) {
             self.wake_next();
