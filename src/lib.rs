@@ -8,6 +8,7 @@ use std::task::{Context, Poll, Waker};
 struct ResourcePoolGet<'a, T> {
     pool: &'a ResourcePool<T>,
     alive: Mutex<Option<mpsc::Receiver<()>>>,
+    id: usize,
 }
 
 impl<'a, T> Future for ResourcePoolGet<'a, T> {
@@ -19,9 +20,11 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
                 let (tx, rx) = mpsc::channel();
                 self.alive.lock().unwrap().replace(rx);
                 holder.append_callback(cx.waker().clone(), tx);
+                println!("queued {}", self.id);
                 Poll::Pending
             },
             |res| {
+                println!("returned {}", self.id);
                 Poll::Ready(ResourcePoolGuard {
                     resource: Some(res),
                     holder: self.pool.holder.clone(),
@@ -105,14 +108,11 @@ impl<T> ResourcePool<T> {
 
     /// Get resource from the pool or wait until one is available
     #[inline]
-    pub async fn get(&self) -> ResourcePoolGuard<T> {
-        self._get().await
-    }
-    #[inline]
-    fn _get(&self) -> ResourcePoolGet<T> {
+    pub fn get(&self, id: usize) -> impl Future<Output = ResourcePoolGuard<T>> + '_ {
         ResourcePoolGet {
             pool: self,
             alive: <_>::default(),
+            id,
         }
     }
 }
@@ -189,7 +189,7 @@ mod test {
                 let fut = tokio::spawn(async move {
                     tokio::time::sleep(Duration::from_millis(1)).await;
                     println!("future {} started {}", i, op.elapsed().as_millis());
-                    let _lock = p.get().await;
+                    let _lock = p.get(i).await;
                     tx.send(i).await.unwrap();
                     println!("future {} locked {}", i, op.elapsed().as_millis());
                     tokio::time::sleep(Duration::from_millis(10)).await;
