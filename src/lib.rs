@@ -152,7 +152,6 @@ impl<T> ResourcePool<T> {
         ResourcePoolGet {
             pool: self,
             queued: false,
-            //id: Uuid::new_v4(),
         }
     }
 }
@@ -266,8 +265,8 @@ mod test {
     }
     #[tokio::test(flavor = "multi_thread")]
     async fn test_no_poisoning() {
-        let n = 1_000;
-        for _ in 1..=n {
+        let n = 2_000;
+        for i in 1..=n {
             let pool: Arc<ResourcePool<()>> = Arc::new(ResourcePool::new());
             let pool_c = pool.clone();
             let fut1 = tokio::spawn(async move {
@@ -288,8 +287,13 @@ mod test {
                 //println!("fut3 completed");
             });
             sleep(Duration::from_millis(2)).await;
-            pool.append(());
-            fut1.abort();
+            if i % 2 == 0 {
+                pool.append(());
+                fut1.abort();
+            } else {
+                fut1.abort();
+                pool.append(());
+            }
             sleep(Duration::from_millis(10)).await;
             let holder = pool.holder.lock();
             assert!(
