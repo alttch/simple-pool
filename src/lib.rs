@@ -1,6 +1,6 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "README.md" ) ) ]
 use parking_lot::Mutex;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
@@ -60,7 +60,7 @@ impl<'a, T> Drop for ResourcePoolGet<'a, T> {
 /// Access directly only if you know what you are doing
 pub struct ResourceHolder<T> {
     pub resources: Vec<T>,
-    wakers: Vec<(Waker, ClientId)>,
+    wakers: VecDeque<(Waker, ClientId)>,
     pending: BTreeSet<ClientId>,
 }
 
@@ -81,8 +81,7 @@ impl<T> ResourceHolder<T> {
 
     #[inline]
     fn wake_next(&mut self) {
-        if !self.wakers.is_empty() {
-            let (waker, id) = self.wakers.remove(0);
+        if let Some((waker, id)) = self.wakers.pop_front() {
             self.pending.insert(id);
             waker.wake();
         }
@@ -108,7 +107,7 @@ impl<T> ResourceHolder<T> {
 
     #[inline]
     fn append_callback(&mut self, waker: Waker, id: ClientId) {
-        self.wakers.push((waker, id));
+        self.wakers.push_back((waker, id));
     }
 }
 
