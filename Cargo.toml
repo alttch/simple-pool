@@ -1,6 +1,6 @@
 [package]
 name = "simple-pool"
-version = "0.0.16"
+version = "0.0.17"
 edition = "2018"
 authors = ["Serhij S. <div@altertech.com>"]
 license = "MIT"
@@ -13,4 +13,5 @@ keywords = ["pool", "async", "resource"]
 tokio = { version = "1.9.0", features = ["net", "sync", "rt-multi-thread", "macros", "time"] }
 
 [dependencies]
+object-id = "0.1.3"
 parking_lot = "0.12.1"

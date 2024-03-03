@@ -1,16 +1,17 @@
 #![ doc = include_str!( concat!( env!( "CARGO_MANIFEST_DIR" ), "/", "README.md" ) ) ]
+use object_id::UniqueId;
 use parking_lot::Mutex;
 use std::collections::{BTreeSet, VecDeque};
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
-use std::ptr::addr_of;
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 
 type ClientId = usize;
 
 struct ResourcePoolGet<'a, T> {
+    id: UniqueId,
     pool: &'a ResourcePool<T>,
     queued: bool,
 }
@@ -43,9 +44,7 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
 impl<'a, T> ResourcePoolGet<'a, T> {
     #[inline]
     fn id(&self) -> ClientId {
-        // as ID is used only when the object is alive, it is pretty safe to use pointer of queued
-        // as the unique object id
-        addr_of!(self.queued).cast::<bool>() as ClientId
+        self.id.as_usize()
     }
 }
 
@@ -149,6 +148,7 @@ impl<T> ResourcePool<T> {
     #[inline]
     pub fn get(&self) -> impl Future<Output = ResourcePoolGuard<T>> + '_ {
         ResourcePoolGet {
+            id: <_>::default(),
             pool: self,
             queued: false,
         }
