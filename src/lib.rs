@@ -23,12 +23,13 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
         cx: &mut Context<'_>,
     ) -> Poll<Self::Output> {
         let mut holder = self.pool.holder.lock();
+        // notify the pool the waker is waked and we were not aborted
+        if self.queued {
+            holder.confirm_waked(self.id());
+        }
         // there are no other futures waiting or we are queued and started from a waker
         if holder.wakers.is_empty() || self.queued {
             if let Some(res) = holder.resources.pop() {
-                self.queued = false;
-                // notify the pool the resource is taken and we were not aborted
-                holder.confirm_get(self.id());
                 return Poll::Ready(ResourcePoolGuard {
                     resource: Some(res),
                     holder: self.pool.holder.clone(),
@@ -52,7 +53,7 @@ impl<'a, T> Drop for ResourcePoolGet<'a, T> {
     #[inline]
     fn drop(&mut self) {
         // notify the pool we are dropped
-        self.pool.holder.lock().notify_drop(self.id());
+        self.pool.holder.lock().notify_get_fut_drop(self.id());
     }
 }
 
@@ -87,7 +88,7 @@ impl<T> ResourceHolder<T> {
     }
 
     #[inline]
-    fn notify_drop(&mut self, id: ClientId) {
+    fn notify_get_fut_drop(&mut self, id: ClientId) {
         // remove the future from wakers
         if let Some(pos) = self.wakers.iter().position(|(_, i)| *i == id) {
             self.wakers.remove(pos);
@@ -99,7 +100,7 @@ impl<T> ResourceHolder<T> {
     }
 
     #[inline]
-    fn confirm_get(&mut self, id: ClientId) {
+    fn confirm_waked(&mut self, id: ClientId) {
         // the resource is taken, remove from pending
         self.pending.remove(&id);
     }
