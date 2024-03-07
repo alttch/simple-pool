@@ -30,6 +30,7 @@ impl<'a, T> Future for ResourcePoolGet<'a, T> {
         // there are no other futures waiting or we are queued and started from a waker
         if holder.wakers.is_empty() || self.queued {
             if let Some(res) = holder.resources.pop() {
+                self.queued = false;
                 return Poll::Ready(ResourcePoolGuard {
                     resource: Some(res),
                     holder: self.pool.holder.clone(),
