@@ -53,7 +53,9 @@ impl<'a, T> Drop for ResourcePoolGet<'a, T> {
     #[inline]
     fn drop(&mut self) {
         // notify the pool we are dropped
-        self.pool.holder.lock().notify_get_fut_drop(self.id());
+        if self.queued {
+            self.pool.holder.lock().notify_get_fut_drop(self.id());
+        }
     }
 }
 
