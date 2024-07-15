@@ -64,6 +64,7 @@ impl<'a, T> Drop for ResourcePoolGet<'a, T> {
 pub struct ResourceHolder<T> {
     pub resources: Vec<T>,
     wakers: VecDeque<(Waker, ClientId)>,
+    waker_ids: BTreeSet<ClientId>,
     pending: BTreeSet<ClientId>,
 }
 
@@ -72,6 +73,7 @@ impl<T> ResourceHolder<T> {
         Self {
             resources: Vec::with_capacity(size),
             wakers: <_>::default(),
+            waker_ids: <_>::default(),
             pending: <_>::default(),
         }
     }
@@ -86,6 +88,7 @@ impl<T> ResourceHolder<T> {
     fn wake_next(&mut self) {
         if let Some((waker, id)) = self.wakers.pop_front() {
             self.pending.insert(id);
+            self.waker_ids.remove(&id);
             waker.wake();
         }
     }
@@ -95,6 +98,7 @@ impl<T> ResourceHolder<T> {
         // remove the future from wakers
         if let Some(pos) = self.wakers.iter().position(|(_, i)| *i == id) {
             self.wakers.remove(pos);
+            self.waker_ids.remove(&id);
         }
         // if the future was pending to get a resource, wake the next one
         if self.pending.remove(&id) {
@@ -110,6 +114,9 @@ impl<T> ResourceHolder<T> {
 
     #[inline]
     fn append_callback(&mut self, waker: Waker, id: ClientId) {
+        if !self.waker_ids.insert(id) {
+            return;
+        }
         self.wakers.push_back((waker, id));
     }
 }
